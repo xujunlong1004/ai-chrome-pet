@@ -6,7 +6,7 @@ import os
 class Settings(BaseSettings):
     """应用配置类"""
     # Qwen API 配置
-    qwen_api_key: str = ""
+    qwen_api_key: str = "sk-c04b3ed69ee64834995a54b0bdf98d06"
     
     # Milvus 配置
     milvus_host: str = "localhost"

@@ -46,11 +46,20 @@ class QwenModel:
     def chat_with_context(self, message: str, documents: list) -> str:
         """使用文档上下文与模型聊天"""
         try:
-            # 构建上下文
-            context_str = "\n".join([doc["content"] for doc in documents[:3]])
+            # 构建更详细的上下文，使用更多文档
+            context_parts = []
+            for i, doc in enumerate(documents[:8]):  # 使用前8个文档
+                if doc.get("content"):
+                    # 区分文档和对话
+                    if doc.get("metadata", {}).get("type") == "conversation":
+                        context_parts.append(f"[对话历史 {i+1}]: {doc['content']}")
+                    else:
+                        context_parts.append(f"[文档信息 {i+1}]: {doc['content']}")
             
-            # 构建提示
-            prompt = f"请根据以下上下文回答问题：\n\n{context_str}\n\n问题：{message}"
+            context_str = "\n\n".join(context_parts)
+            
+            # 构建提示，强调使用上下文
+            prompt = f"请严格根据以下上下文回答问题，不要编造信息：\n\n{context_str}\n\n问题：{message}\n\n回答："
             
             # 调用模型
             response = self.chat(prompt)
