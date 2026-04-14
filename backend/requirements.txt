@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+langchain
+langchain-community
+pydantic
+pydantic-settings
+python-dotenv
+docx2txt
+PyPDF2
+pymilvus
+transformers
+torch
+sentence-transformers
+requests
+python-multipart
