@@ -19,15 +19,16 @@ AI Chrome Pet is a browser-based AI pet application that can:
 
 ### 宠物图标
 
-![宠物图标](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=A%20cute%20black%20pet%20icon%20with%20blue%20eyes%20on%20a%20browser%20extension%20background&image_size=square)
+<img width="304" height="237" alt="image" src="https://github.com/user-attachments/assets/668b889d-37b9-4af9-a62c-48be835106f4" />
 
 ### 设置界面
 
-![设置界面](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=A%20settings%20panel%20for%20AI%20pet%20with%20emotion%20selection%20buttons%20and%20sliders%20for%20size%20and%20speed%20adjustment&image_size=landscape_16_9)
+<img width="679" height="698" alt="image" src="https://github.com/user-attachments/assets/5deba120-9ba7-45a3-b292-1239a38da9fd" />
 
 ### 聊天界面
 
-![聊天界面](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=A%20chat%20interface%20with%20AI%20pet%20showing%20conversation%20history%20with%20bubbles%20for%20user%20and%20pet%20messages&image_size=portrait_4_3)
+<img width="635" height="515" alt="image" src="https://github.com/user-attachments/assets/f7dd3699-e886-40e1-b0bc-323ae5bd09e2" />
+
 
 ## 快速开始
 
