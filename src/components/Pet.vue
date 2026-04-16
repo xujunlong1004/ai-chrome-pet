@@ -961,19 +961,35 @@ import { computed } from "vue";
   animation: eye-surprised 1s ease-in-out infinite;
 }
 
-/* 疲惫表情：扁矩形 */
-.pet-tired .pet-eye {
-  height: 3px;
-  width: 15px;
+/* 疲惫表情：眯眼下移 */
+.pet-tired {
+  animation: disdain-shake 2.5s ease-in-out infinite;
   opacity: 0.7;
-  animation: eye-tired 2s ease-in-out infinite;
 }
 
-/* 鄙视表情：斜线条 */
+.pet-tired .pet-eye {
+  width: 12px;
+  height: 3px;
+  background-color: #0099ff;
+  border-radius: 2px;
+  position: relative;
+  animation: eye-disdain 2.5s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.pet-tired .pet-eye.left {
+  animation: eye-disdain-left 2.5s ease-in-out infinite;
+}
+
+.pet-tired .pet-eye.right {
+  animation: eye-disdain-right 2.5s ease-in-out infinite;
+}
+
+/* 鄙视表情：扁矩形 */
 .pet-disdain .pet-eye {
   height: 3px;
-  transform: rotate(-30deg);
-  animation: eye-disdain 3s ease-in-out infinite;
+  width: 15px;
+  animation: eye-tired 2s ease-in-out infinite;
 }
 
 /* 可爱表情：圆形眼睛 */
@@ -1062,10 +1078,80 @@ import { computed } from "vue";
 @keyframes eye-disdain {
   0%,
   100% {
-    transform: rotate(-10deg);
+    transform: translateY(0);
   }
   50% {
-    transform: rotate(10deg);
+    transform: translateY(12px);
+  }
+}
+
+@keyframes eye-disdain-left {
+  0%,
+  100% {
+    transform: translateY(0) rotateZ(-3deg);
+    height: 3px;
+  }
+  30% {
+    transform: translateY(12px) rotateZ(2deg);
+    height: 3px;
+  }
+  50% {
+    transform: translateY(12px) rotateZ(-2deg);
+    height: 1.5px;
+  }
+  70% {
+    transform: translateY(8px) rotateZ(1deg);
+    height: 1.5px;
+  }
+  85% {
+    transform: translateY(4px) rotateZ(-1deg);
+    height: 2px;
+  }
+}
+
+@keyframes eye-disdain-right {
+  0%,
+  100% {
+    transform: translateY(0) rotateZ(3deg);
+    height: 3px;
+  }
+  30% {
+    transform: translateY(12px) rotateZ(-2deg);
+    height: 3px;
+  }
+  50% {
+    transform: translateY(12px) rotateZ(2deg);
+    height: 1.5px;
+  }
+  70% {
+    transform: translateY(8px) rotateZ(-1deg);
+    height: 1.5px;
+  }
+  85% {
+    transform: translateY(4px) rotateZ(1deg);
+    height: 2px;
+  }
+}
+
+@keyframes mouth-disdain {
+  0%,
+  100% {
+    transform: rotate(-15deg);
+    opacity: 0.8;
+  }
+  50% {
+    transform: rotate(-12deg);
+    opacity: 0.9;
+  }
+}
+
+@keyframes disdain-shake {
+  0%,
+  100% {
+    transform: rotateZ(0deg);
+  }
+  50% {
+    transform: rotateZ(2deg);
   }
 }
 
@@ -1180,9 +1266,13 @@ import { computed } from "vue";
 }
 
 .pet-mouth.disdain {
-  width: 15px;
-  height: 3px;
-  transform: rotate(-10deg);
+  width: 18px;
+  height: 2px;
+  background-color: #0099ff;
+  transform: rotate(-15deg);
+  border-radius: 1px;
+  animation: mouth-disdain 2.5s ease-in-out infinite;
+  opacity: 0.8;
 }
 
 .pet-mouth.cute {
