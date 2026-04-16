@@ -1223,48 +1223,45 @@ import { computed } from "vue";
 
 /* 电子故障效果 */
 .pet.glitch {
-  animation: glitch 0.3s infinite;
-  border-radius: 10px;
-  box-shadow: 0 0 20px rgba(0, 153, 255, 0.7);
+  animation: glitch 0.35s infinite;
+  border-radius: 14px;
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.15),
+    0 0 28px rgba(0, 255, 255, 0.25);
+  filter: contrast(1.2) saturate(1.3);
+  position: relative;
+  overflow: hidden;
 }
 
-.pet.glitch::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(0, 153, 255, 0.3),
-    transparent
-  );
-  animation: scan-horizontal 0.5s linear infinite;
-}
-
+.pet.glitch::before,
 .pet.glitch::after {
   content: "";
   position: absolute;
-  top: -100%;
+  top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    rgba(0, 153, 255, 0.3),
-    transparent
-  );
-  animation: scan-vertical 0.7s linear infinite;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.45;
+}
+
+.pet.glitch::before {
+  background: rgba(255, 0, 64, 0.25);
+  transform: translateX(-3px);
+  animation: glitch-red 0.35s infinite;
+}
+
+.pet.glitch::after {
+  background: rgba(0, 232, 255, 0.2);
+  transform: translateX(3px);
+  animation: glitch-blue 0.35s infinite;
 }
 
 .pet.glitch .pet-eye,
 .pet.glitch .pet-mouth {
-  animation: glitch-eyes 0.3s infinite;
+  animation: glitch-eyes 0.25s infinite;
   position: relative;
-  box-shadow: 0 0 10px rgba(0, 153, 255, 0.8);
+  box-shadow: 0 0 16px rgba(255, 0, 128, 0.25), 0 0 16px rgba(0, 232, 255, 0.25);
 }
 
 .pet.glitch .pet-eye::before,
@@ -1275,8 +1272,13 @@ import { computed } from "vue";
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(90deg, transparent, #0099ff, transparent);
-  animation: scan 0.5s linear infinite;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  animation: scan 0.4s linear infinite;
   opacity: 0.7;
   border-radius: inherit;
 }
@@ -1301,6 +1303,54 @@ import { computed } from "vue";
   }
 }
 
+@keyframes glitch-red {
+  0%,
+  100% {
+    transform: translateX(-3px) skewX(-6deg);
+    clip-path: inset(0 0 70% 0);
+  }
+  20% {
+    transform: translateX(4px) skewX(4deg);
+    clip-path: inset(10% 0 45% 0);
+  }
+  40% {
+    transform: translateX(-2px) skewX(-4deg);
+    clip-path: inset(50% 0 15% 0);
+  }
+  60% {
+    transform: translateX(3px) skewX(5deg);
+    clip-path: inset(15% 0 55% 0);
+  }
+  80% {
+    transform: translateX(-4px) skewX(-5deg);
+    clip-path: inset(60% 0 10% 0);
+  }
+}
+
+@keyframes glitch-blue {
+  0%,
+  100% {
+    transform: translateX(3px) skewX(6deg);
+    clip-path: inset(40% 0 20% 0);
+  }
+  20% {
+    transform: translateX(-3px) skewX(-5deg);
+    clip-path: inset(5% 0 60% 0);
+  }
+  40% {
+    transform: translateX(2px) skewX(4deg);
+    clip-path: inset(30% 0 35% 0);
+  }
+  60% {
+    transform: translateX(-4px) skewX(-6deg);
+    clip-path: inset(55% 0 10% 0);
+  }
+  80% {
+    transform: translateX(4px) skewX(5deg);
+    clip-path: inset(20% 0 50% 0);
+  }
+}
+
 @keyframes bounce {
   0%,
   100% {
@@ -1312,23 +1362,27 @@ import { computed } from "vue";
 }
 
 @keyframes glitch {
-  0% {
-    transform: translate(0);
-  }
-  20% {
-    transform: translate(-2px, 2px);
-  }
-  40% {
-    transform: translate(-2px, -2px);
-  }
-  60% {
-    transform: translate(2px, 2px);
-  }
-  80% {
-    transform: translate(2px, -2px);
-  }
+  0%,
   100% {
     transform: translate(0);
+  }
+  15% {
+    transform: translate(-3px, 2px) skewX(-3deg);
+  }
+  30% {
+    transform: translate(4px, -2px) skewY(2deg);
+  }
+  45% {
+    transform: translate(-2px, 3px) skewX(4deg);
+  }
+  60% {
+    transform: translate(3px, -3px) skewY(-3deg);
+  }
+  75% {
+    transform: translate(-1px, 2px) skewX(-2deg);
+  }
+  90% {
+    transform: translate(2px, -1px) skewY(2deg);
   }
 }
 

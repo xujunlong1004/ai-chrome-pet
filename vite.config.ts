@@ -17,11 +17,22 @@ export default defineConfig({
       },
       output: {
         entryFileNames: (chunkInfo) => {
-          // 将background.js放到根目录
           if (chunkInfo.name === "background") {
             return "background.js";
           }
+          if (chunkInfo.name === "content") {
+            return "assets/content.js";
+          }
+          if (chunkInfo.name === "main") {
+            return "assets/main.js";
+          }
           return "assets/[name]-[hash].js";
+        },
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name && assetInfo.name.endsWith(".css")) {
+            return `assets/${assetInfo.name}`;
+          }
+          return "assets/[name]-[hash][extname]";
         },
       },
     },
