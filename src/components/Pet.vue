@@ -18,20 +18,8 @@
     >
       <div class="pet-face">
         <div class="pet-eyes">
-          <div
-            class="pet-eye left"
-            :style="{
-              transform: `rotate(100deg) scale(${eyeScale.left})`,
-              height: isBlinking ? blinkHeight : '18px',
-            }"
-          ></div>
-          <div
-            class="pet-eye right"
-            :style="{
-              transform: `rotate(-100deg) scale(${eyeScale.right})`,
-              height: isBlinking ? blinkHeight : '18px',
-            }"
-          ></div>
+          <div class="pet-eye left" :style="leftEyeStyle"></div>
+          <div class="pet-eye right" :style="rightEyeStyle"></div>
         </div>
         <!-- <div 
           class="pet-mouth" 
@@ -106,6 +94,41 @@ const expressionClass = computed(() => {
   return `pet-${expression.value}`;
 });
 
+// 计算眼睛样式
+const leftEyeStyle = computed(() => {
+  // 只有开心和生气表情才应用动态transform
+  if (expression.value === "happy" || expression.value === "angry") {
+    return {
+      transform:
+        expression.value === "angry"
+          ? `rotate(100deg) scale(${eyeScale.value.left}) translate(${eyeOffset.value.x}px, ${eyeOffset.value.y}px)`
+          : `scale(${eyeScale.value.left}) translate(${eyeOffset.value.x}px, ${eyeOffset.value.y}px)`,
+      height: isBlinking.value ? blinkHeight.value : "18px",
+    };
+  }
+  // 其他表情使用默认样式
+  return {
+    height: isBlinking.value ? blinkHeight.value : "18px",
+  };
+});
+
+const rightEyeStyle = computed(() => {
+  // 只有开心和生气表情才应用动态transform
+  if (expression.value === "happy" || expression.value === "angry") {
+    return {
+      transform:
+        expression.value === "angry"
+          ? `rotate(-100deg) scale(${eyeScale.value.right}) translate(${eyeOffset.value.x}px, ${eyeOffset.value.y}px)`
+          : `scale(${eyeScale.value.right}) translate(${eyeOffset.value.x}px, ${eyeOffset.value.y}px)`,
+      height: isBlinking.value ? blinkHeight.value : "18px",
+    };
+  }
+  // 其他表情使用默认样式
+  return {
+    height: isBlinking.value ? blinkHeight.value : "18px",
+  };
+});
+
 const startDrag = (event: MouseEvent) => {
   isDragging.value = true;
   dragStart.value = {
@@ -169,6 +192,120 @@ const handleClick = () => {
 };
 
 const handleMouseMove = (event: MouseEvent) => {
+  // 跟踪鼠标位置，用于追逐功能
+  window.mouseX = event.clientX;
+  window.mouseY = event.clientY;
+
+  // 检测鼠标是否绕着宠物绕圈
+  if (petRef.value) {
+    const petRect = petRef.value.getBoundingClientRect();
+    // 扩展检测区域，以宠物为中心，半径为宠物宽度的2倍
+    const detectionRadius = petRect.width * 2;
+    const petCenterX = petRect.left + petRect.width / 2;
+    const petCenterY = petRect.top + petRect.height / 2;
+
+    // 计算鼠标到宠物中心的距离
+    const distance = Math.sqrt(
+      Math.pow(event.clientX - petCenterX, 2) +
+        Math.pow(event.clientY - petCenterY, 2)
+    );
+
+    // 如果鼠标在检测区域内
+    if (distance <= detectionRadius) {
+      // 计算鼠标相对于宠物中心的角度
+      const angle = Math.atan2(
+        event.clientY - petCenterY,
+        event.clientX - petCenterX
+      );
+
+      // 保存鼠标路径点
+      mousePathPoints.value.push({ x: event.clientX, y: event.clientY });
+      // 限制保存的点数
+      if (mousePathPoints.value.length > MAX_PATH_POINTS) {
+        mousePathPoints.value.shift();
+      }
+
+      // 检测是否完成一圈
+      if (lastAngle !== 0) {
+        const angleDiff = angle - lastAngle;
+        // 检测是否完成了一个完整的圈（角度变化超过2π）
+        if (Math.abs(angleDiff) > Math.PI) {
+          // 调整角度差，考虑360度循环
+          const adjustedDiff =
+            angleDiff > 0 ? angleDiff - 2 * Math.PI : angleDiff + 2 * Math.PI;
+          if (Math.abs(adjustedDiff) < 1) {
+            // 防止误检测
+            // 增加圈数计数
+            currentCircles++;
+
+            // 检查是否达到了要求的圈数
+            if (
+              currentCircles >= REQUIRED_CIRCLES &&
+              !isChasing.value &&
+              !isMoving.value &&
+              !isChaseScheduled.value
+            ) {
+              // 避免在延迟期间重复排队追逐
+              currentCircles = 0;
+              lastAngle = 0;
+              REQUIRED_CIRCLES = Math.floor(Math.random() * 3) + 1;
+              startChasing();
+            }
+          }
+        }
+      }
+
+      // 更新最后角度
+      lastAngle = angle;
+
+      // 只有在开心表情时才触发盯着鼠标的动作
+      if (expression.value === "happy") {
+        // 眼睛盯着鼠标的动作
+        // 计算鼠标相对于宠物中心的位置
+        const distanceFromCenterX = event.clientX - petCenterX;
+        const distanceFromCenterY = event.clientY - petCenterY;
+        const maxDistance = petRect.width / 2;
+
+        // 计算眼睛位置偏移（尺度要小）
+        eyeOffset.value.x = (distanceFromCenterX / maxDistance) * 3; // 最大偏移3像素
+        eyeOffset.value.y = (distanceFromCenterY / maxDistance) * 2; // 最大偏移2像素
+
+        // 计算眼睛缩放（尺度要小）
+        if (distanceFromCenterX > 0) {
+          // 鼠标在右侧，右眼不动，左眼稍微放大
+          eyeScale.value.right = 1; // 右边眼睛不动
+          eyeScale.value.left = Math.min(
+            1.1,
+            1 + Math.abs(distanceFromCenterX) / (maxDistance * 5)
+          ); // 左边眼睛稍微放大
+        } else {
+          // 鼠标在左侧，左眼不动，右眼稍微放大
+          eyeScale.value.left = 1; // 左边眼睛不动
+          eyeScale.value.right = Math.min(
+            1.1,
+            1 + Math.abs(distanceFromCenterX) / (maxDistance * 5)
+          ); // 右边眼睛稍微放大
+        }
+      } else {
+        // 其他表情时保持原样
+        eyeOffset.value = { x: 0, y: 0 };
+        eyeScale.value = { left: 1, right: 1 };
+      }
+    } else {
+      // 鼠标离开检测区域，重置检测
+      mousePathPoints.value = [];
+      currentCircles = 0;
+      lastAngle = 0;
+      // 只在开心表情时才重置眼睛状态
+      if (expression.value === "happy") {
+        eyeOffset.value = { x: 0, y: 0 };
+        eyeScale.value = { left: 1, right: 1 };
+      }
+      // 重新随机所需圈数
+      REQUIRED_CIRCLES = Math.floor(Math.random() * 3) + 1;
+    }
+  }
+
   if (expression.value === "angry" && petRef.value) {
     const petRect = petRef.value.getBoundingClientRect();
     const petCenterX = petRect.left + petRect.width / 2;
@@ -295,6 +432,12 @@ onMounted(() => {
 
   // 启动眨眼动画
   startBlinkAnimation();
+
+  // 开始自主移动
+  startMoving();
+
+  // 添加鼠标移动事件监听器，跟踪鼠标位置
+  document.addEventListener("mousemove", handleMouseMove);
 });
 
 onUnmounted(() => {
@@ -307,7 +450,376 @@ onUnmounted(() => {
   if (blinkInterval.value) {
     clearInterval(blinkInterval.value);
   }
+  if (moveInterval.value) {
+    clearTimeout(moveInterval.value);
+  }
+  // 清除动画帧
+  if (chaseAnimationId.value) {
+    cancelAnimationFrame(chaseAnimationId.value);
+  }
+  // 清除鼠标移动事件监听器
+  document.removeEventListener("mousemove", handleMouseMove);
 });
+
+// 自主移动相关变量
+const isMoving = ref(false);
+const moveInterval = ref<number | null>(null);
+const isChasing = ref(false);
+const isChaseScheduled = ref(false);
+const chaseTimeoutId = ref<number | null>(null);
+const chaseAnimationId = ref<number | null>(null);
+
+// 鼠标绕圈检测相关变量
+const mousePathPoints = ref<{ x: number; y: number }[]>([]);
+const MAX_PATH_POINTS = 50; // 最多保存50个点
+let REQUIRED_CIRCLES = Math.floor(Math.random() * 2) + 2; // 固定2-3圈
+let currentCircles = 0;
+let lastAngle = 0;
+
+// 开始自主移动
+const startMoving = () => {
+  if (moveInterval.value) {
+    clearInterval(moveInterval.value);
+  }
+
+  // 随机时间间隔触发移动
+  const scheduleNextMove = () => {
+    if (isChasing.value) return; // 如果正在追逐，不安排下一次移动
+
+    // 随机时间间隔 2-5秒
+    const randomInterval = 2000 + Math.random() * 3000;
+
+    moveInterval.value = window.setTimeout(() => {
+      if (!isMoving.value && !isChasing.value) {
+        // 10%的概率触发追逐鼠标
+        if (Math.random() < 0.1) {
+          startChasing();
+        } else {
+          isMoving.value = true;
+          // 随机移动3-5步
+          const stepsToMove = 3 + Math.floor(Math.random() * 3);
+          movePetSteps(stepsToMove);
+        }
+      } else {
+        // 如果正在移动或追逐，重新安排
+        scheduleNextMove();
+      }
+    }, randomInterval);
+  };
+
+  scheduleNextMove();
+};
+
+// 移动宠物（一次移动一步）
+const movePet = (onComplete) => {
+  // 如果已经在追逐中，直接完成
+  if (isChasing.value) {
+    if (onComplete) {
+      onComplete();
+    }
+    return;
+  }
+
+  // 计算新位置
+  const screenWidth = window.innerWidth;
+  const screenHeight = window.innerHeight;
+  const petWidth = props.petSize;
+  const petHeight = props.petSize;
+
+  // 限制移动距离，每次移动不超过80像素，让宠物看起来像是在走而不是在飞
+  const maxDistance = 80;
+  // 随机移动方向
+  const angle = Math.random() * Math.PI * 2;
+  // 随机移动距离
+  const distance = Math.random() * maxDistance;
+  // 计算目标位置
+  let targetX = position.value.x + Math.cos(angle) * distance;
+  let targetY = position.value.y + Math.sin(angle) * distance;
+
+  // 确保目标位置在屏幕范围内
+  targetX = Math.max(0, Math.min(screenWidth - petWidth, targetX));
+  targetY = Math.max(0, Math.min(screenHeight - petHeight, targetY));
+
+  // 计算实际移动距离
+  const distanceX = targetX - position.value.x;
+  const distanceY = targetY - position.value.y;
+  const totalDistance = Math.sqrt(
+    distanceX * distanceX + distanceY * distanceY
+  );
+
+  // 计算移动步数，确保足够多的步数让移动看起来流畅
+  const steps = Math.ceil(totalDistance / 3);
+  let currentStep = 0;
+
+  // 保存初始位置
+  const startX = position.value.x;
+  const startY = position.value.y;
+
+  // 移动过程中切换到开心的表情
+  expression.value = "happy";
+
+  // 开始移动
+  const moveStep = () => {
+    // 如果在移动过程中触发了追逐，立即停止移动
+    if (isChasing.value) {
+      isMoving.value = false;
+      return;
+    }
+
+    if (currentStep < steps) {
+      currentStep++;
+
+      // 计算当前位置
+      const progress = currentStep / steps;
+
+      // 使用缓动函数，让移动更自然
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+      // 计算当前位置（带跳跃效果）- 增强跳跃感，让宠物duangduang地跳
+      const jumpHeight = 20 * Math.sin(progress * Math.PI * 1.5);
+
+      // 从初始位置开始计算，确保一步一步移动
+      position.value = {
+        x: startX + distanceX * easeProgress,
+        y: startY + distanceY * easeProgress - jumpHeight,
+      };
+
+      // 继续下一步
+      requestAnimationFrame(moveStep);
+    } else {
+      // 添加落地时的果冻效果
+      addJellyEffect();
+
+      // 移动完成，调用回调
+      if (onComplete) {
+        onComplete();
+      }
+    }
+  };
+
+  // 开始移动
+  moveStep();
+};
+
+// 移动宠物多步
+const movePetSteps = (totalSteps) => {
+  let currentStep = 0;
+
+  const stepComplete = () => {
+    currentStep++;
+    if (currentStep < totalSteps && !isChasing.value) {
+      // 继续移动下一步
+      setTimeout(() => {
+        movePet(stepComplete);
+      }, 200); // 两步之间的短暂停顿
+    } else {
+      // 所有步骤完成
+      isMoving.value = false;
+
+      // 随机切换到其他表情
+      if (props.randomExpression) {
+        setTimeout(() => {
+          expression.value =
+            expressions[Math.floor(Math.random() * expressions.length)];
+        }, 1000);
+      }
+
+      // 安排下一次移动
+      startMoving();
+    }
+  };
+
+  // 开始第一步移动
+  movePet(stepComplete);
+};
+
+// 添加轻微落地效果（减少果冻效果强度）
+const addJellyEffect = () => {
+  const pet = document.querySelector(".pet");
+  if (pet) {
+    pet.classList.add("pet-jelly-light");
+    setTimeout(() => {
+      pet.classList.remove("pet-jelly-light");
+    }, 300); // 缩短持续时间
+  }
+};
+
+// 眼睛位置偏移
+const eyeOffset = ref({ x: 0, y: 0 });
+
+// 执行一步追逐（固定距离，确保一致速度）
+const performChaseStep = (onComplete) => {
+  // 如果已经不在追逐中，直接完成
+  if (!isChasing.value) {
+    if (onComplete) onComplete();
+    return;
+  }
+
+  // 获取鼠标位置
+  const mousePos = getMousePosition();
+  if (!mousePos) {
+    if (onComplete) onComplete();
+    return;
+  }
+
+  // 计算目标位置（鼠标中心）
+  const targetX = mousePos.x - props.petSize / 2;
+  const targetY = mousePos.y - props.petSize / 2;
+
+  // 计算方向和距离
+  const dx = targetX - position.value.x;
+  const dy = targetY - position.value.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  // 如果距离太近，停止追逐
+  if (distance < 10) {
+    if (onComplete) onComplete();
+    return;
+  }
+
+  // 固定每步移动距离（25像素），步子更大
+  const stepDistance = 25;
+  const moveDistance = Math.min(stepDistance, distance);
+
+  // 计算这一步的目标位置
+  const stepX = position.value.x + (dx / distance) * moveDistance;
+  const stepY = position.value.y + (dy / distance) * moveDistance;
+
+  // 确保在屏幕范围内
+  const screenWidth = window.innerWidth;
+  const screenHeight = window.innerHeight;
+  const finalX = Math.max(0, Math.min(screenWidth - props.petSize, stepX));
+  const finalY = Math.max(0, Math.min(screenHeight - props.petSize, stepY));
+
+  // 保存初始位置
+  const startX = position.value.x;
+  const startY = position.value.y;
+
+  // 计算这一步的距离
+  const stepDx = finalX - startX;
+  const stepDy = finalY - startY;
+
+  // 使用更平滑的动画（增加步数，让每步更慢）
+  const animationSteps = 12; // 增加步数使动画更慢
+  let currentStep = 0;
+
+  const animateStep = () => {
+    if (!isChasing.value) {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    currentStep++;
+    const progress = currentStep / animationSteps;
+
+    // 使用更平滑的缓动函数
+    const easeProgress =
+      progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+    // 小幅跳跃效果，更像走路（和走路保持一致的跳跃高度）
+    const jumpHeight = 20 * Math.sin(progress * Math.PI);
+
+    // 更新位置
+    position.value = {
+      x: startX + stepDx * easeProgress,
+      y: startY + stepDy * easeProgress - jumpHeight,
+    };
+
+    if (currentStep < animationSteps) {
+      requestAnimationFrame(animateStep);
+    } else {
+      // 一步完成，添加轻微落地效果
+      addJellyEffect();
+      if (onComplete) onComplete();
+    }
+  };
+
+  // 开始动画
+  animateStep();
+};
+
+// 开始追逐鼠标
+const startChasing = () => {
+  // 如果已经在追逐中或已安排过追逐，不要重复触发
+  if (isChasing.value || isChaseScheduled.value) return;
+
+  isChaseScheduled.value = true;
+
+  // 清理之前的移动计时器
+  if (moveInterval.value) {
+    clearTimeout(moveInterval.value);
+    moveInterval.value = null;
+  }
+
+  // 2秒后开始追逐
+  chaseTimeoutId.value = window.setTimeout(() => {
+    isChaseScheduled.value = false;
+    chaseTimeoutId.value = null;
+    isChasing.value = true;
+    expression.value = "happy";
+
+    // 追逐持续时间（3-5秒）
+    const chaseDuration = 3000 + Math.random() * 2000;
+    const startTime = Date.now();
+
+    // 追逐循环，使用固定的时间间隔确保丝滑
+    const chaseStep = () => {
+      if (!isChasing.value) return;
+
+      // 检查是否到达追逐时间
+      if (Date.now() - startTime > chaseDuration) {
+        stopChasing();
+        return;
+      }
+
+      // 执行一步追逐
+      performChaseStep(() => {
+        // 继续下一歩，使用固定间隔（增加间隔让跳跃不要太快）
+        setTimeout(chaseStep, 200); // 每200ms一步，让跳跃更慢
+      });
+    };
+
+    // 开始追逐循环
+    chaseStep();
+  }, 2000);
+};
+
+// 停止追逐
+const stopChasing = () => {
+  isChasing.value = false;
+  isChaseScheduled.value = false;
+  if (chaseTimeoutId.value) {
+    clearTimeout(chaseTimeoutId.value);
+    chaseTimeoutId.value = null;
+  }
+  // 重置眼睛偏移
+  eyeOffset.value = { x: 0, y: 0 };
+  // 取消动画帧
+  if (chaseAnimationId.value) {
+    cancelAnimationFrame(chaseAnimationId.value);
+    chaseAnimationId.value = null;
+  }
+  // 安排下一次移动
+  setTimeout(() => {
+    startMoving();
+  }, 500);
+};
+
+// 获取鼠标位置
+const getMousePosition = () => {
+  let mouseX = 0;
+  let mouseY = 0;
+
+  // 检查是否有鼠标移动事件
+  if (window.mouseX && window.mouseY) {
+    return { x: window.mouseX, y: window.mouseY };
+  }
+
+  // 否则返回null
+  return null;
+};
 
 // 计算属性需要导入
 import { computed } from "vue";
@@ -323,13 +835,12 @@ import { computed } from "vue";
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 153, 255, 0.5);
-  transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
   border: 2px solid #333;
 }
 
-/* 机器人头部细节 */
+/* 机器人头部细节
 .pet::before {
   content: "";
   position: absolute;
@@ -342,7 +853,7 @@ import { computed } from "vue";
 }
 
 /* 机器人耳机效果 */
-.pet::after {
+/* .pet::after {
   content: "";
   position: absolute;
   top: -5px;
@@ -352,7 +863,7 @@ import { computed } from "vue";
   background-color: #333;
   border-radius: 10px 10px 0 0;
   z-index: -1;
-}
+} */
 
 .pet-face {
   width: 80px;
@@ -452,7 +963,8 @@ import { computed } from "vue";
 
 /* 疲惫表情：扁矩形 */
 .pet-tired .pet-eye {
-  height: 5px;
+  height: 3px;
+  width: 15px;
   opacity: 0.7;
   animation: eye-tired 2s ease-in-out infinite;
 }
@@ -539,8 +1051,10 @@ import { computed } from "vue";
   0%,
   100% {
     height: 5px;
+    width: 15px;
   }
   50% {
+    width: 15px;
     height: 3px;
   }
 }
@@ -870,5 +1384,39 @@ import { computed } from "vue";
 
 .pet-bounce {
   animation: bounce 1s ease-in-out;
+}
+
+.pet-jelly {
+  animation: jelly 0.5s ease-in-out;
+}
+
+.pet-jelly-light {
+  animation: jelly-light 0.3s ease-in-out;
+}
+
+@keyframes jelly {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  25% {
+    transform: scale(1.1, 0.9);
+  }
+  50% {
+    transform: scale(0.9, 1.1);
+  }
+  75% {
+    transform: scale(1.05, 0.95);
+  }
+}
+
+@keyframes jelly-light {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.03, 0.97);
+  }
 }
 </style>

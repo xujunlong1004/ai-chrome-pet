@@ -3,18 +3,19 @@
   "name": "Chrome AI Pet",
   "version": "1.0.0",
   "description": "A cute AI pet for your Chrome browser with dynamic expressions and interactive features",
-  "permissions": [
-    "storage",
-    "activeTab",
-    "http://127.0.0.1:8888/*"
-  ],
+  "permissions": ["storage", "activeTab"],
   "background": {
-    "service_worker": "dist/background.js"
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Chrome AI Pet"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["dist/assets/index-b265a61c.js"]
+      "css": ["assets/main-efdfc5d4.css"],
+      "js": ["assets/main-0e110c03.js"]
     }
   ]
 }
