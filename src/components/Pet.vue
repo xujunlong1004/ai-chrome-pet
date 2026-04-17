@@ -465,9 +465,12 @@ onUnmounted(() => {
 const isMoving = ref(false);
 const moveInterval = ref<number | null>(null);
 const isChasing = ref(false);
-const isChaseScheduled = ref(false);
-const chaseTimeoutId = ref<number | null>(null);
 const chaseAnimationId = ref<number | null>(null);
+const chaseTimeoutId = ref<number | null>(null);
+const isChaseScheduled = ref(false); // 标记是否已经安排了追逐
+let currentDirection = 0; // 当前移动方向
+let directionStability = 0; // 方向稳定性计数，用于控制方向改变的频率
+let directionChangeThreshold = 3 + Math.floor(Math.random() * 3); // 方向改变阈值，3-5步
 
 // 鼠标绕圈检测相关变量
 const mousePathPoints = ref<{ x: number; y: number }[]>([]);
@@ -496,8 +499,8 @@ const startMoving = () => {
           startChasing();
         } else {
           isMoving.value = true;
-          // 随机移动3-5步
-          const stepsToMove = 3 + Math.floor(Math.random() * 3);
+          // 随机移动5-10步，走更长的距离
+          const stepsToMove = 5 + Math.floor(Math.random() * 6);
           movePetSteps(stepsToMove);
         }
       } else {
@@ -526,10 +529,52 @@ const movePet = (onComplete) => {
   const petWidth = props.petSize;
   const petHeight = props.petSize;
 
-  // 限制移动距离，每次移动不超过80像素，让宠物看起来像是在走而不是在飞
-  const maxDistance = 80;
+  // 检查是否碰到屏幕边框
+  let isColliding = false;
+  if (position.value.x <= 0 || position.value.x >= screenWidth - petWidth || 
+      position.value.y <= 0 || position.value.y >= screenHeight - petHeight) {
+    isColliding = true;
+  }
+
+  // 限制移动距离，每次移动不超过100像素，让宠物走得更远
+  const maxDistance = 100;
   // 随机移动方向
-  const angle = Math.random() * Math.PI * 2;
+  let angle;
+  if (isColliding) {
+    // 如果碰到边框，选择一个远离边框的方向
+    if (position.value.x <= 0) angle = Math.random() * Math.PI / 2; // 向右
+    else if (position.value.x >= screenWidth - petWidth) angle = Math.PI + Math.random() * Math.PI / 2; // 向左
+    else if (position.value.y <= 0) angle = Math.random() * Math.PI; // 向下
+    else angle = Math.PI + Math.random() * Math.PI; // 向上
+    
+    // 重置方向稳定性计数和阈值
+    directionStability = 0;
+    directionChangeThreshold = 3 + Math.floor(Math.random() * 3); // 3-5步
+    currentDirection = angle;
+  } else {
+    // 检查是否需要改变方向
+    if (directionStability >= directionChangeThreshold) {
+      // 随机新方向
+      angle = Math.random() * Math.PI * 2;
+      currentDirection = angle;
+      directionStability = 0;
+      directionChangeThreshold = 3 + Math.floor(Math.random() * 3); // 3-5步
+    } else {
+      // 保持当前方向，有小范围的随机变化
+      if (currentDirection === 0) {
+        // 如果是第一次移动，随机一个方向
+        angle = Math.random() * Math.PI * 2;
+        currentDirection = angle;
+      } else {
+        // 在当前方向的基础上有小范围的随机变化
+        angle = currentDirection + (Math.random() - 0.5) * Math.PI / 6; // 最多15度的变化
+      }
+      directionStability++;
+    }
+  }
+  
+  // 保存当前方向到lastAngle（用于鼠标绕圈检测）
+  lastAngle = angle;
   // 随机移动距离
   const distance = Math.random() * maxDistance;
   // 计算目标位置
@@ -547,47 +592,77 @@ const movePet = (onComplete) => {
     distanceX * distanceX + distanceY * distanceY
   );
 
-  // 计算移动步数，确保足够多的步数让移动看起来流畅
-  const steps = Math.ceil(totalDistance / 3);
-  let currentStep = 0;
+  // 固定每步移动距离（25像素），与追逐时保持一致
+  const stepDistance = 25;
+  const moveDistance = Math.min(stepDistance, totalDistance);
+  
+  // 计算这一步的目标位置
+  const stepX = position.value.x + (distanceX / totalDistance) * moveDistance;
+  const stepY = position.value.y + (distanceY / totalDistance) * moveDistance;
+
+  // 确保在屏幕范围内
+  const finalX = Math.max(0, Math.min(screenWidth - props.petSize, stepX));
+  const finalY = Math.max(0, Math.min(screenHeight - props.petSize, stepY));
 
   // 保存初始位置
   const startX = position.value.x;
   const startY = position.value.y;
 
+  // 计算这一步的距离
+  const stepDx = finalX - startX;
+  const stepDy = finalY - startY;
+
   // 移动过程中切换到开心的表情
   expression.value = "happy";
+  
+  // 如果碰到边框，添加碰撞效果
+  if (isColliding) {
+    const pet = document.querySelector(".pet");
+    if (pet) {
+      pet.classList.add("pet-bounce");
+      setTimeout(() => {
+        pet.classList.remove("pet-bounce");
+      }, 500);
+    }
+  }
+
+  // 使用更平滑的动画（增加步数，让每步更慢）- 与追逐时保持一致
+  const animationSteps = 12; // 增加步数使动画更慢
+  let currentStep = 0;
 
   // 开始移动
   const moveStep = () => {
     // 如果在移动过程中触发了追逐，立即停止移动
     if (isChasing.value) {
       isMoving.value = false;
+      if (onComplete) {
+        onComplete();
+      }
       return;
     }
 
-    if (currentStep < steps) {
-      currentStep++;
+    currentStep++;
+    const progress = currentStep / animationSteps;
 
-      // 计算当前位置
-      const progress = currentStep / steps;
+    // 使用更平滑的缓动函数 - 与追逐时保持一致
+    const easeProgress =
+      progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
-      // 使用缓动函数，让移动更自然
-      const easeProgress = 1 - Math.pow(1 - progress, 3);
+    // 小幅跳跃效果，更像走路 - 与追逐时保持一致
+    const jumpHeight = 20 * Math.sin(progress * Math.PI);
 
-      // 计算当前位置（带跳跃效果）- 增强跳跃感，让宠物duangduang地跳
-      const jumpHeight = 20 * Math.sin(progress * Math.PI * 1.5);
+    // 更新位置
+    position.value = {
+      x: startX + stepDx * easeProgress,
+      y: startY + stepDy * easeProgress - jumpHeight,
+    };
 
-      // 从初始位置开始计算，确保一步一步移动
-      position.value = {
-        x: startX + distanceX * easeProgress,
-        y: startY + distanceY * easeProgress - jumpHeight,
-      };
-
-      // 继续下一步
+    if (currentStep < animationSteps) {
       requestAnimationFrame(moveStep);
     } else {
-      // 添加落地时的果冻效果
+      // 一步完成，添加轻微落地效果
       addJellyEffect();
 
       // 移动完成，调用回调
