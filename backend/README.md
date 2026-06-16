@@ -1,12 +1,14 @@
 # AI Pet Backend
 
-这是一个为AI宠物提供向量存储和模型交互功能的后端服务，使用FastAPI、LangChain、Qwen3-max模型和Milvus向量存储。
+这是一个为AI宠物提供向量存储、长期记忆和资料库检索能力的后端服务，使用 FastAPI、LangChain、Qwen 模型和本地 Chroma 向量存储。
 
 ## 功能特性
 
-- 文档加载：支持txt、docx、pdf格式的文档
-- 向量存储：使用Milvus进行向量存储和检索
-- 模型交互：使用Qwen3-max模型进行聊天
+- 文档加载：支持 txt、md、docx、pdf、json 格式的文档
+- public资料库：启动时递归同步 `public` 目录，可手动触发同步
+- 长期记忆：使用低成本 Qwen 模型判断对话是否重要，只保存有长期价值的记忆
+- 向量存储：使用本地 Chroma 进行向量存储和检索
+- 模型交互：默认使用 Qwen3-max 进行聊天，Qwen Turbo 进行记忆筛选
 - RAG功能：结合文档上下文进行智能回答
 - RESTful API：提供完整的API接口
 
@@ -26,17 +28,13 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-### 3. 启动Milvus
-
-确保Milvus服务已经启动，默认监听在localhost:19530。
-
-### 4. 启动后端服务
+### 3. 启动后端服务
 
 ```bash
 python main.py
 ```
 
-服务默认运行在 http://localhost:8000
+服务默认运行在 http://127.0.0.1:8888
 
 ## API接口
 
@@ -125,18 +123,34 @@ python main.py
   }
   ```
 
+### 6. 同步 public 资料库
+
+- **路径**：`/api/knowledge/sync`
+- **方法**：POST
+- **响应**：
+  ```json
+  {
+    "result": {
+      "loaded": 1,
+      "skipped": 2,
+      "unsupported": 1,
+      "errors": 0
+    }
+  }
+  ```
+
 ## 技术栈
 
 - FastAPI：Web框架
 - LangChain：大语言模型应用框架
 - Qwen3-max：大语言模型
-- Milvus：向量数据库
-- HuggingFace Embeddings：文本嵌入
+- Chroma：本地向量数据库
+- DashScopeEmbeddings：文本嵌入
 - Pydantic：数据验证
 
 ## 注意事项
 
-1. 确保Milvus服务已经启动
-2. 填写正确的Qwen API Key
-3. 文档上传大小限制为默认值，可根据需要调整
-4. 在生产环境中，应该配置CORS为具体的域名
+1. 填写正确的 Qwen API Key
+2. `public/manifest.json` 等扩展元数据不会被当作资料库索引
+3. 修改或新增 `public` 资料后，可重启服务或调用 `/api/knowledge/sync`
+4. 在生产环境中，应该配置 CORS 为具体的域名

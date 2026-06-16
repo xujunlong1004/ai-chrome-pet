@@ -6,6 +6,11 @@
     @click="handleClick"
     @mousemove="handleMouseMove"
   >
+    <!-- 对话气泡 -->
+    <div v-if="showBubble" class="speech-bubble">
+      <div class="speech-bubble-content">{{ bubbleText }}</div>
+    </div>
+    
     <div
       class="pet animate-float"
       :class="[expressionClass, { glitch: isGlitching }]"
@@ -78,6 +83,13 @@ const mouthRotation = ref(0);
 const isBlinking = ref(false);
 const blinkHeight = ref("3px");
 const blinkInterval = ref<number | null>(null);
+
+// 对话气泡相关
+const showBubble = ref(false);
+const bubbleText = ref("");
+const isAnalyzing = ref(false);
+let clickTimeout: number | null = null;
+let clickTimes = 0;
 
 const expressions = [
   "happy",
@@ -160,35 +172,54 @@ const stopDrag = () => {
 };
 
 const handleClick = () => {
-  // 增加点击计数
-  clickCount.value++;
-
-  // 只有在随机模式下才会在点击时切换表情
-  if (props.randomExpression) {
-    expression.value =
-      expressions[Math.floor(Math.random() * expressions.length)];
+  // 双击检测
+  clickTimes++;
+  
+  if (clickTimeout) {
+    clearTimeout(clickTimeout);
   }
-
-  // 检查是否超过最大点击次数
-  if (clickCount.value > maxClicks) {
-    // 触发故障效果
-    isGlitching.value = true;
-
-    // 3秒后恢复正常
-    setTimeout(() => {
-      isGlitching.value = false;
-      clickCount.value = 0; // 重置点击计数
-    }, 3000);
+  
+  if (clickTimes === 2) {
+    // 双击触发分析网页
+    analyzeCurrentPage();
+    clickTimes = 0;
+    return;
   }
+  
+  // 单击处理
+  clickTimeout = window.setTimeout(() => {
+    // 增加点击计数
+    clickCount.value++;
 
-  // 添加弹跳动画
-  const pet = document.querySelector(".pet");
-  if (pet) {
-    pet.classList.add("pet-bounce");
-    setTimeout(() => {
-      pet.classList.remove("pet-bounce");
-    }, 1000);
-  }
+    // 只有在随机模式下才会在点击时切换表情
+    if (props.randomExpression) {
+      expression.value =
+        expressions[Math.floor(Math.random() * expressions.length)];
+    }
+
+    // 检查是否超过最大点击次数
+    if (clickCount.value > maxClicks) {
+      // 触发故障效果
+      isGlitching.value = true;
+
+      // 3秒后恢复正常
+      setTimeout(() => {
+        isGlitching.value = false;
+        clickCount.value = 0; // 重置点击计数
+      }, 3000);
+    }
+
+    // 添加弹跳动画
+    const pet = document.querySelector(".pet");
+    if (pet) {
+      pet.classList.add("pet-bounce");
+      setTimeout(() => {
+        pet.classList.remove("pet-bounce");
+      }, 1000);
+    }
+    
+    clickTimes = 0;
+  }, 300);
 };
 
 const handleMouseMove = (event: MouseEvent) => {
@@ -1636,6 +1667,51 @@ import { computed } from "vue";
   }
   50% {
     transform: scale(1.03, 0.97);
+  }
+}
+
+/* 对话气泡样式 */
+.speech-bubble {
+  position: absolute;
+  bottom: 130px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-width: 280px;
+  z-index: 1000;
+  animation: bubble-fade-in 0.3s ease-out;
+}
+
+.speech-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 10px 10px 0;
+  border-style: solid;
+  border-color: #ffffff transparent transparent transparent;
+}
+
+.speech-bubble-content {
+  font-size: 14px;
+  color: #333333;
+  line-height: 1.5;
+  font-family: 'Comic Sans MS', cursive;
+  text-align: center;
+}
+
+@keyframes bubble-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }
 </style>

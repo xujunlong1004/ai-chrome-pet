@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "A cute AI pet for your Chrome browser with dynamic expressions and interactive features",
   "permissions": ["storage", "activeTab"],
+  "host_permissions": ["http://127.0.0.1:8888/*"],
   "background": {
     "service_worker": "background.js"
   },

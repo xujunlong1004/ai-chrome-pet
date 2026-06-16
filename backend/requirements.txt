@@ -2,11 +2,15 @@ fastapi
 uvicorn
 langchain
 langchain-community
+langchain-chroma
+langchain-openai
 pydantic
 pydantic-settings
 python-dotenv
 docx2txt
 PyPDF2
+pypdf
+dashscope
 pymilvus
 transformers
 torch

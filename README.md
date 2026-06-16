@@ -58,6 +58,9 @@ npm install
 
 ```
 Qwen_API_KEY=your_qwen_api_key
+QWEN_CHAT_MODEL=qwen3-max
+QWEN_MEMORY_JUDGE_MODEL=qwen-turbo
+MEMORY_IMPORTANCE_THRESHOLD=0.6
 ```
 
 ### 启动后端服务
@@ -123,14 +126,17 @@ ai-chrome-pet/
 
 ### 2. 文档信息检索
 
-- 自动加载 `public/宠物基本信息.docx` 到向量存储
+- 启动后自动递归加载 `public` 目录中的 `.txt`、`.md`、`.docx`、`.pdf`、`.json` 资料
+- 修改已有资料后会根据文件哈希更新旧片段，避免重复索引
+- 新增资料或 skills 后，可重启后端，或调用 `POST /api/knowledge/sync` 手动同步
 - 根据用户问题检索相关文档内容
 - 基于文档内容生成回答
 
 ### 3. 对话历史持久化
 
-- 将用户与宠物的对话保存到向量存储
-- 下次对话时自动检索相关历史
+- 使用低成本 Qwen 模型先判断本轮对话是否重要
+- 只将用户偏好、长期目标、项目背景、宠物设定、重要决定等有长期价值的内容提炼为长期记忆
+- 下次对话时自动检索相关长期记忆
 - 实现长期记忆功能
 
 ### 4. 智能上下文理解
@@ -165,6 +171,7 @@ ai-chrome-pet/
 - **POST /api/chat-with-context** - 使用文档上下文聊天
 - **POST /api/search** - 搜索向量存储
 - **POST /api/upload** - 上传文档
+- **POST /api/knowledge/sync** - 同步 `public` 资料库
 
 ## 使用说明
 
@@ -177,8 +184,8 @@ ai-chrome-pet/
 ## 注意事项
 
 - 确保 `backend/.env` 文件中配置了有效的 Qwen API 密钥
-- 首次启动时会自动加载 `public/宠物基本信息.docx`
-- 对话历史会自动保存到向量存储中
+- 首次启动时会自动加载 `public` 目录中的资料文档
+- 对话只有被轻量模型判断为重要时才会保存为长期记忆
 - 刷新页面后，宠物仍然能够记住之前的对话内容
 
 ## 未来计划

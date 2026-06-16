@@ -7,16 +7,21 @@ from config import settings
 import os
 import hashlib
 import json
+from datetime import datetime
+from typing import Optional
 
 
 class VectorStore:
     """向量存储管理类"""
     
+    SUPPORTED_EXTENSIONS = {".txt", ".md", ".docx", ".pdf", ".json"}
+    IGNORED_FILE_NAMES = {"manifest.json"}
+    
     def __init__(self):
         """初始化向量存储"""
         # 使用DashScope嵌入模型
         self.embeddings = DashScopeEmbeddings(
-            model="text-embedding-v2",
+            model=settings.qwen_embedding_model,
             dashscope_api_key=settings.qwen_api_key
         )
         
@@ -36,7 +41,7 @@ class VectorStore:
             separators=["\n\n", "\n", " ", ""]
         )
         
-        # 已加载文档的记录文件
+        # 已加载资料的记录文件
         self.loaded_docs_file = os.path.join(os.path.dirname(__file__), "loaded_documents.json")
         self.loaded_docs = self._load_loaded_docs()
     
@@ -69,64 +74,173 @@ class VectorStore:
         except Exception:
             return ""
     
-    def load_document(self, file_path: str) -> str:
+    def _record_for(self, key: str) -> Optional[dict]:
+        record = self.loaded_docs.get(key)
+        if isinstance(record, dict):
+            return record
+        if isinstance(record, str):
+            return {"hash": record, "ids": []}
+        return None
+    
+    def _get_loader(self, file_path: str):
+        """根据文件类型选择加载器"""
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext in {".txt", ".md", ".json"}:
+            return TextLoader(file_path, encoding="utf-8")
+        if ext == ".docx":
+            return Docx2txtLoader(file_path)
+        if ext == ".pdf":
+            return PyPDFLoader(file_path)
+        return None
+    
+    def _delete_document_chunks(self, ids: list):
+        if not ids:
+            return
+        try:
+            self.vector_store.delete(ids=ids)
+        except Exception as e:
+            print(f"删除旧资料片段失败: {str(e)}")
+    
+    def load_document(self, file_path: str, source_root: str = None) -> str:
         """加载文档并添加到向量存储"""
         try:
             if not os.path.exists(file_path):
                 return f"文件不存在: {file_path}"
             
             file_name = os.path.basename(file_path)
+            source_root = source_root or os.path.dirname(file_path)
+            source_path = os.path.relpath(file_path, source_root)
+            doc_key = f"knowledge:{source_path}"
             file_hash = self._get_file_hash(file_path)
             
-            if file_name in self.loaded_docs:
-                if self.loaded_docs[file_name] == file_hash:
-                    return f"文档 {file_name} 已加载，跳过重复加载"
+            legacy_record = doc_key not in self.loaded_docs and file_name in self.loaded_docs
+            record = self._record_for(doc_key)
+            if not record and legacy_record:
+                record = self._record_for(file_name)
             
-            if file_path.endswith('.txt'):
-                loader = TextLoader(file_path)
-            elif file_path.endswith('.docx'):
-                loader = Docx2txtLoader(file_path)
-            elif file_path.endswith('.pdf'):
-                loader = PyPDFLoader(file_path)
-            else:
+            if record and record.get("hash") == file_hash and not legacy_record:
+                return f"资料 {source_path} 未变化，跳过加载"
+            
+            loader = self._get_loader(file_path)
+            if loader is None:
                 return f"不支持的文件类型: {os.path.splitext(file_path)[1]}"
+            
+            if record and not legacy_record:
+                self._delete_document_chunks(record.get("ids", []))
             
             documents = loader.load()
             
             split_docs = self.text_splitter.split_documents(documents)
+            chunk_ids = []
+            loaded_at = datetime.utcnow().isoformat()
+            for index, doc in enumerate(split_docs):
+                chunk_id = hashlib.md5(f"{doc_key}:{file_hash}:{index}".encode("utf-8")).hexdigest()
+                chunk_ids.append(chunk_id)
+                doc.metadata.update({
+                    "type": "knowledge",
+                    "source": source_path,
+                    "source_path": source_path,
+                    "file_name": file_name,
+                    "file_hash": file_hash,
+                    "chunk_index": index,
+                    "loaded_at": loaded_at
+                })
             
-            self.vector_store.add_documents(split_docs)
+            self.vector_store.add_documents(split_docs, ids=chunk_ids)
             
-            self.loaded_docs[file_name] = file_hash
+            if file_name in self.loaded_docs and file_name != doc_key:
+                self.loaded_docs.pop(file_name, None)
+            self.loaded_docs[doc_key] = {
+                "hash": file_hash,
+                "ids": chunk_ids,
+                "source": source_path,
+                "loaded_at": loaded_at
+            }
             self._save_loaded_docs()
             
-            return f"文档加载成功，添加了 {len(split_docs)} 个片段"
+            return f"资料 {source_path} 加载成功，添加了 {len(split_docs)} 个片段"
             
         except Exception as e:
             return f"加载文档失败: {str(e)}"
     
-    def save_conversation(self, user_message: str, assistant_response: str) -> str:
-        """保存对话到向量存储"""
+    def load_public_knowledge(self, public_dir: str = None) -> dict:
+        """递归加载public目录中的资料文档。"""
+        public_dir = public_dir or settings.public_knowledge_dir
+        summary = {
+            "directory": public_dir,
+            "loaded": 0,
+            "skipped": 0,
+            "unsupported": 0,
+            "errors": 0,
+            "details": []
+        }
+        
+        if not os.path.isdir(public_dir):
+            summary["errors"] += 1
+            summary["details"].append(f"资料库目录不存在: {public_dir}")
+            return summary
+        
+        for root, dirs, files in os.walk(public_dir):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for file_name in files:
+                if file_name.startswith("."):
+                    continue
+                if file_name in self.IGNORED_FILE_NAMES:
+                    summary["unsupported"] += 1
+                    continue
+                file_path = os.path.join(root, file_name)
+                ext = os.path.splitext(file_name)[1].lower()
+                if ext not in self.SUPPORTED_EXTENSIONS:
+                    summary["unsupported"] += 1
+                    continue
+                
+                result = self.load_document(file_path, source_root=public_dir)
+                summary["details"].append(result)
+                if "加载成功" in result:
+                    summary["loaded"] += 1
+                elif "跳过加载" in result:
+                    summary["skipped"] += 1
+                else:
+                    summary["errors"] += 1
+        
+        return summary
+    
+    def save_memory(self, memory: str, user_message: str, assistant_response: str, importance: float, reason: str = "") -> str:
+        """保存重要对话提炼出的长期记忆。"""
         try:
-            # 使用更清晰的格式，便于检索
-            conversation_content = f"Q: {user_message}\nA: {assistant_response}"
+            content = f"长期记忆: {memory}"
+            memory_id = hashlib.md5(
+                f"{memory}:{user_message}:{assistant_response}".encode("utf-8")
+            ).hexdigest()
             
             doc = Document(
-                page_content=conversation_content,
+                page_content=content,
                 metadata={
-                    "type": "conversation",
+                    "type": "memory",
+                    "importance": importance,
+                    "reason": reason,
                     "user_message": user_message,
-                    "assistant_response": assistant_response
+                    "assistant_response": assistant_response,
+                    "created_at": datetime.utcnow().isoformat()
                 }
             )
             
-            # 添加文档到向量存储
-            self.vector_store.add_documents([doc])
+            self.vector_store.add_documents([doc], ids=[memory_id])
             
-            return "对话保存成功"
+            return "重要记忆保存成功"
             
         except Exception as e:
-            return f"保存对话失败: {str(e)}"
+            return f"保存记忆失败: {str(e)}"
+    
+    def save_conversation(self, user_message: str, assistant_response: str) -> str:
+        """兼容旧调用：保存完整对话。新聊天接口优先使用save_memory。"""
+        return self.save_memory(
+            memory=f"用户说：{user_message}；宠物回复：{assistant_response}",
+            user_message=user_message,
+            assistant_response=assistant_response,
+            importance=0.5,
+            reason="legacy conversation save"
+        )
     
     def search(self, query: str, k: int = 3) -> list:
         """根据查询在向量存储中搜索相关文档"""
